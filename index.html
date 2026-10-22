@@ -41,13 +41,32 @@ td.n,th.n{text-align:left}
 .actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
 .btn{flex:1;padding:10px 14px;border-radius:10px;border:1px solid var(--brand);background:var(--brand);color:var(--onbrand);font:inherit;font-weight:600;cursor:pointer}
 .btn.ghost{background:transparent;color:var(--brand)}
-@media print{body{background:#fff;color:#000}.products,.actions,.sub,h1{display:none}.layout{display:block}.invoice{border:0;position:static}.cust{border:0;padding:0;background:none;color:#000}}
+.admin{background:var(--card);border:2px dashed var(--accent);border-radius:14px;padding:16px;margin-bottom:20px}
+.admin h2{margin:0 0 4px;font-size:1.1rem}
+.admin p{margin:0 0 12px;color:var(--mute);font-size:.9rem}
+.arow{display:grid;grid-template-columns:56px 1fr 120px auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.arow input[type=text],.arow input[type=number]{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+.thumb{width:56px;height:56px;border-radius:8px;background:var(--line);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.5rem}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.arow .del{border:1px solid var(--line);background:none;color:var(--ink);border-radius:8px;padding:8px 10px;cursor:pointer;font:inherit}
+.arow input[type=file]{display:none}
+@media (max-width:560px){.arow{grid-template-columns:56px 1fr auto}.arow .pr{grid-column:2/4}}
+@media print{.admin{display:none}body{background:#fff;color:#000}.products,.actions,.sub,h1{display:none}.layout{display:block}.invoice{border:0;position:static}.cust{border:0;padding:0;background:none;color:#000}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>سفارش خود را انتخاب کنید</h1>
   <p class="sub">تعداد هر کالا را مشخص کنید؛ فاکتور هم‌زمان ساخته می‌شود.</p>
+  <section class="admin" id="admin" hidden>
+    <h2>ویرایش کالاها</h2>
+    <p>کالا اضافه یا حذف کنید، روی کادر عکس بزنید تا عکس انتخاب شود. در پایان فایل را دانلود کنید و جای <b>products.json</b> در گیت‌هاب بگذارید.</p>
+    <div id="rows"></div>
+    <div class="actions">
+      <button class="btn ghost" id="add">+ کالای جدید</button>
+      <button class="btn" id="dl">دانلود products.json</button>
+    </div>
+  </section>
   <div class="layout">
     <div class="products" id="products"></div>
     <aside class="invoice">
@@ -66,58 +85,68 @@ td.n,th.n{text-align:left}
 </div>
 
 <script>
-/* ===== اینجا کالاهای خودتان را ویرایش کنید =====
-   image: مسیر عکس داخل پوشه images (اگر نبود، یک آیکون نمایش داده می‌شود)
-   price: قیمت به تومان */
-const PRODUCTS = [
-  { id: 1, name: "کالای اول",  price: 250000, image: "images/1.jpg", icon: "📦" },
-  { id: 2, name: "کالای دوم",  price: 480000, image: "images/2.jpg", icon: "🎁" },
-  { id: 3, name: "کالای سوم",  price: 120000, image: "images/3.jpg", icon: "🧴" },
-  { id: 4, name: "کالای چهارم", price: 890000, image: "images/4.jpg", icon: "👜" }
-];
 const UNIT = "تومان";
-const PHONE = "09125623688"; /* شماره خودتان؛ پیامک سفارش به این شماره می‌رود */
-/* ============================================== */
+const PHONE = "09125623688"; /* شماره‌ای که پیامک سفارش به آن می‌رود */
+/* کالاها از فایل products.json خوانده می‌شوند. اگر فایل در دسترس نبود این نمونه‌ها نمایش داده می‌شود */
+const FALLBACK = [
+  { name: "کالای اول", price: 250000, image: "", icon: "📦" },
+  { name: "کالای دوم", price: 480000, image: "", icon: "🎁" }
+];
+let PRODUCTS = [];
+const qty = [];
+const ADMIN = location.search.includes("admin");
 
 const fa = n => n.toLocaleString("fa-IR");
 const money = n => fa(n) + " " + UNIT;
-const qty = {};
-PRODUCTS.forEach(p => qty[p.id] = 0);
-
 const grid = document.getElementById("products");
-PRODUCTS.forEach(p => {
-  const el = document.createElement("div");
-  el.className = "card";
-  el.id = "c" + p.id;
-  el.innerHTML = `
-    <div class="pic"><img alt="${p.name}" src="${p.image}"></div>
-    <div class="body">
-      <div class="name">${p.name}</div>
-      <div class="price">${money(p.price)}</div>
-      <div class="stepper">
-        <button class="plus" aria-label="افزودن ${p.name}">+</button>
-        <span class="qty" id="q${p.id}">۰</span>
-        <button class="minus" aria-label="کم کردن ${p.name}">−</button>
-      </div>
-    </div>`;
-  const img = el.querySelector("img");
-  img.onerror = () => { img.parentNode.textContent = p.icon; };
-  el.querySelector(".plus").onclick = () => change(p.id, 1);
-  el.querySelector(".minus").onclick = () => change(p.id, -1);
-  grid.appendChild(el);
-});
+function buildGrid() {
+  grid.innerHTML = "";
+  PRODUCTS.forEach((p, i) => {
+    if (qty[i] === undefined) qty[i] = 0;
+    const el = document.createElement("div");
+    el.className = "card";
+    el.id = "c" + i;
+    el.innerHTML = `
+      <div class="pic"></div>
+      <div class="body">
+        <div class="name"></div>
+        <div class="price">${money(p.price)}</div>
+        <div class="stepper">
+          <button class="plus">+</button>
+          <span class="qty" id="q${i}">۰</span>
+          <button class="minus">−</button>
+        </div>
+      </div>`;
+    el.querySelector(".name").textContent = p.name;
+    el.querySelector(".plus").setAttribute("aria-label", "افزودن " + p.name);
+    el.querySelector(".minus").setAttribute("aria-label", "کم کردن " + p.name);
+    const pic = el.querySelector(".pic");
+    if (p.image) {
+      const img = document.createElement("img");
+      img.alt = p.name;
+      img.src = p.image;
+      img.onerror = () => { pic.textContent = p.icon || "📦"; };
+      pic.appendChild(img);
+    } else pic.textContent = p.icon || "📦";
+    el.querySelector(".plus").onclick = () => change(i, 1);
+    el.querySelector(".minus").onclick = () => change(i, -1);
+    grid.appendChild(el);
+  });
+  qty.length = PRODUCTS.length;
+  render();
+}
 
 function change(id, d) {
   qty[id] = Math.max(0, Math.min(999, qty[id] + d));
   render();
 }
 
-function chosen() { return PRODUCTS.filter(p => qty[p.id] > 0); }
+function chosen() { return PRODUCTS.map((p, i) => ({ ...p, id: i })).filter(p => qty[p.id] > 0); }
 
 function render() {
-  PRODUCTS.forEach(p => {
-    document.getElementById("q" + p.id).textContent = fa(qty[p.id]);
-    document.getElementById("c" + p.id).classList.toggle("on", qty[p.id] > 0);
+  PRODUCTS.forEach((p, i) => {
+    document.getElementById("q" + i).textContent = fa(qty[i]);
+    document.getElementById("c" + i).classList.toggle("on", qty[i] > 0);
   });
   const items = chosen();
   const box = document.getElementById("lines");
@@ -168,8 +197,62 @@ document.getElementById("copy").onclick = async e => {
   catch { flash(e.target, "کپی نشد", "کپی متن سفارش"); }
 };
 
-render();
-updateSms();
+/* ---------- ویرایش کالاها (فقط با آدرس ?admin) ---------- */
+const toEn = v => String(v).replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
+function shrink(file) {
+  return new Promise(res => {
+    const r = new FileReader();
+    r.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        const k = Math.min(1, 700 / im.width), c = document.createElement("canvas");
+        c.width = im.width * k; c.height = im.height * k;
+        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+        res(c.toDataURL("image/jpeg", 0.8));
+      };
+      im.src = r.result;
+    };
+    r.readAsDataURL(file);
+  });
+}
+function buildRows() {
+  const box = document.getElementById("rows");
+  box.innerHTML = "";
+  PRODUCTS.forEach((p, i) => {
+    const row = document.createElement("div");
+    row.className = "arow";
+    row.innerHTML = `<label class="thumb" title="انتخاب عکس"><input type="file" accept="image/*"><span></span></label>
+      <input type="text" class="nm" placeholder="نام کالا">
+      <input type="number" class="pr" inputmode="numeric" placeholder="قیمت">
+      <button class="del">حذف</button>`;
+    const th = row.querySelector(".thumb span");
+    const showThumb = () => { th.innerHTML = ""; if (p.image) { const im = document.createElement("img"); im.src = p.image; th.appendChild(im); } else th.textContent = p.icon || "📦"; };
+    showThumb();
+    row.querySelector(".nm").value = p.name;
+    row.querySelector(".pr").value = p.price;
+    row.querySelector(".nm").oninput = e => { p.name = e.target.value; buildGrid(); };
+    row.querySelector(".pr").oninput = e => { p.price = Number(toEn(e.target.value)) || 0; buildGrid(); };
+    row.querySelector("input[type=file]").onchange = async e => {
+      if (e.target.files[0]) { p.image = await shrink(e.target.files[0]); showThumb(); buildGrid(); }
+    };
+    row.querySelector(".del").onclick = () => { PRODUCTS.splice(i, 1); qty.splice(i, 1); buildRows(); buildGrid(); };
+    box.appendChild(row);
+  });
+}
+if (ADMIN) {
+  document.getElementById("admin").hidden = false;
+  document.getElementById("add").onclick = () => { PRODUCTS.push({ name: "کالای جدید", price: 0, image: "", icon: "📦" }); buildRows(); buildGrid(); };
+  document.getElementById("dl").onclick = () => {
+    const blob = new Blob([JSON.stringify(PRODUCTS, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "products.json"; a.click();
+  };
+}
+
+fetch("products.json", { cache: "no-store" })
+  .then(r => { if (!r.ok) throw 0; return r.json(); })
+  .catch(() => FALLBACK)
+  .then(list => { PRODUCTS = list; buildGrid(); updateSms(); if (ADMIN) buildRows(); });
 </script>
 </body>
 </html>
