@@ -65,17 +65,23 @@ td.n,th.n{text-align:left}
     <div id="rows"></div>
     <div class="actions">
       <button class="btn ghost" id="add">+ کالای جدید</button>
-      <button class="btn" id="pub">ذخیره روی سایت</button>
     </div>
-    <div id="pubmsg" style="margin-top:10px;font-weight:600"></div>
-    <details style="margin-top:12px">
-      <summary style="cursor:pointer;color:var(--brand);font-weight:600">تنظیمات ذخیره (فقط بار اول)</summary>
-      <p style="margin:8px 0 6px">نام ریپازیتوری به شکل <b>نام‌کاربری/نام-ریپو</b>:</p>
+    <p style="margin:14px 0 6px;font-weight:600">وقتی کالاها آماده شد:</p>
+    <div class="actions">
+      <button class="btn" id="dl">۱. دانلود products.json</button>
+      <a class="btn ghost" id="gh" href="#" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">۲. رفتن به صفحهٔ آپلود گیت‌هاب</a>
+    </div>
+    <p style="margin:8px 0 0;font-size:.9rem">در صفحهٔ گیت‌هاب فایل دانلودشده را (با نام دقیق <b>products.json</b>) بکشید یا انتخاب کنید و پایین صفحه <b>Commit changes</b> را بزنید.</p>
+    <div style="margin-top:12px">
+      <p style="margin:0 0 6px">نام ریپوی گیت‌هاب برای ساخت لینک آپلود (مثلاً <b>ali/shop</b>):</p>
       <input class="cust" id="repo" dir="ltr" placeholder="ali/shop">
-      <p style="margin:0 0 6px">توکن گیت‌هاب (Fine-grained، فقط همین ریپو، دسترسی Contents: Read and write):</p>
+    </div>
+    <details style="margin-top:4px">
+      <summary style="cursor:pointer;color:var(--mute)">ذخیرهٔ خودکار با توکن (اختیاری، برای کاربران حرفه‌ای)</summary>
+      <p style="margin:8px 0 6px">توکن گیت‌هاب (Fine-grained، فقط همین ریپو، Contents: Read and write):</p>
       <input class="cust" id="token" type="password" dir="ltr" placeholder="github_pat_...">
-      <p style="margin:0">توکن فقط روی همین گوشی ذخیره می‌شود و داخل کد سایت نیست. آن را به کسی ندهید.</p>
-      <div class="actions"><button class="btn ghost" id="dl">دانلود products.json (روش دستی)</button></div>
+      <div class="actions"><button class="btn" id="pub">ذخیرهٔ روی سایت با توکن</button></div>
+      <div id="pubmsg" style="margin-top:10px;font-weight:600"></div>
     </details>
   </section>
   <div class="layout">
@@ -256,6 +262,9 @@ if (ADMIN) {
   const host = location.hostname, guess = host.endsWith("github.io")
     ? host.split(".")[0] + "/" + (location.pathname.split("/")[1] || host) : "";
   try { repoIn.value = localStorage.getItem("repo") || guess; tokIn.value = localStorage.getItem("token") || ""; } catch { repoIn.value = guess; }
+  const ghLink = () => { const r = repoIn.value.trim(); document.getElementById("gh").href = r.includes("/") ? "https://github.com/" + r + "/upload" : "https://github.com/"; };
+  repoIn.addEventListener("input", () => { try { localStorage.setItem("repo", repoIn.value.trim()); } catch {} ghLink(); });
+  ghLink();
   document.getElementById("add").onclick = () => { PRODUCTS.push({ name: "کالای جدید", price: 0, image: "", icon: "📦" }); buildRows(); buildGrid(); };
   document.getElementById("dl").onclick = () => {
     const blob = new Blob([JSON.stringify(PRODUCTS, null, 2)], { type: "application/json" });
@@ -265,7 +274,7 @@ if (ADMIN) {
   const msg = t => document.getElementById("pubmsg").textContent = t;
   document.getElementById("pub").onclick = async () => {
     const repo = repoIn.value.trim(), token = tokIn.value.trim();
-    if (!repo.includes("/") || !token) { document.querySelector("#admin details").open = true; return msg("اول نام ریپو و توکن را در «تنظیمات ذخیره» وارد کنید."); }
+    if (!repo.includes("/") || !token) return msg("نام ریپو و توکن را وارد کنید.");
     try { localStorage.setItem("repo", repo); localStorage.setItem("token", token); } catch {}
     msg("در حال ذخیره...");
     const url = `https://api.github.com/repos/${repo}/contents/products.json`;
