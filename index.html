@@ -61,6 +61,7 @@ td.n,th.n{text-align:left}
   <section class="admin" id="admin" hidden>
     <h2>ویرایش کالاها</h2>
     <p>کالا اضافه یا حذف کنید، روی کادر عکس بزنید تا عکس انتخاب شود. در پایان فایل را دانلود کنید و جای <b>products.json</b> در گیت‌هاب بگذارید.</p>
+    <div id="status" style="font-weight:600;margin-bottom:8px"></div>
     <div id="rows"></div>
     <div class="actions">
       <button class="btn ghost" id="add">+ کالای جدید</button>
@@ -249,10 +250,20 @@ if (ADMIN) {
   };
 }
 
-fetch("products.json", { cache: "no-store" })
+let loaded = false;
+fetch("products.json?v=" + Date.now(), { cache: "no-store" })
   .then(r => { if (!r.ok) throw 0; return r.json(); })
+  .then(list => { loaded = true; return list; })
   .catch(() => FALLBACK)
-  .then(list => { PRODUCTS = list; buildGrid(); updateSms(); if (ADMIN) buildRows(); });
+  .then(list => {
+    PRODUCTS = list; buildGrid(); updateSms();
+    if (ADMIN) {
+      buildRows();
+      document.getElementById("status").textContent = loaded
+        ? "فایل products.json خوانده شد: " + fa(list.length) + " کالا"
+        : "فایل products.json پیدا نشد؛ نمونه‌ها نمایش داده می‌شود. فایل را کنار index.html آپلود کنید.";
+    }
+  });
 </script>
 </body>
 </html>
