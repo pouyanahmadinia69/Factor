@@ -1,6 +1,8 @@
 [
-  { "name": "کالای اول",   "price": 250000, "image": "", "icon": "📦" },
-  { "name": "کالای دوم",   "price": 480000, "image": "", "icon": "🎁" },
-  { "name": "کالای سوم",   "price": 120000, "image": "", "icon": "🧴" },
-  { "name": "کالای چهارم", "price": 890000, "image": "", "icon": "👜" }
+  {
+    "name": "کالای karton",
+    "price": 250000,
+    "image": "",
+    "icon": "📦"
+  }
 ]
