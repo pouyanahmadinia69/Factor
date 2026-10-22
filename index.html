@@ -65,8 +65,18 @@ td.n,th.n{text-align:left}
     <div id="rows"></div>
     <div class="actions">
       <button class="btn ghost" id="add">+ کالای جدید</button>
-      <button class="btn" id="dl">دانلود products.json</button>
+      <button class="btn" id="pub">ذخیره روی سایت</button>
     </div>
+    <div id="pubmsg" style="margin-top:10px;font-weight:600"></div>
+    <details style="margin-top:12px">
+      <summary style="cursor:pointer;color:var(--brand);font-weight:600">تنظیمات ذخیره (فقط بار اول)</summary>
+      <p style="margin:8px 0 6px">نام ریپازیتوری به شکل <b>نام‌کاربری/نام-ریپو</b>:</p>
+      <input class="cust" id="repo" dir="ltr" placeholder="ali/shop">
+      <p style="margin:0 0 6px">توکن گیت‌هاب (Fine-grained، فقط همین ریپو، دسترسی Contents: Read and write):</p>
+      <input class="cust" id="token" type="password" dir="ltr" placeholder="github_pat_...">
+      <p style="margin:0">توکن فقط روی همین گوشی ذخیره می‌شود و داخل کد سایت نیست. آن را به کسی ندهید.</p>
+      <div class="actions"><button class="btn ghost" id="dl">دانلود products.json (روش دستی)</button></div>
+    </details>
   </section>
   <div class="layout">
     <div class="products" id="products"></div>
@@ -206,10 +216,10 @@ function shrink(file) {
     r.onload = () => {
       const im = new Image();
       im.onload = () => {
-        const k = Math.min(1, 700 / im.width), c = document.createElement("canvas");
+        const k = Math.min(1, 600 / im.width), c = document.createElement("canvas");
         c.width = im.width * k; c.height = im.height * k;
         c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
-        res(c.toDataURL("image/jpeg", 0.8));
+        res(c.toDataURL("image/jpeg", 0.75));
       };
       im.src = r.result;
     };
@@ -242,11 +252,36 @@ function buildRows() {
 }
 if (ADMIN) {
   document.getElementById("admin").hidden = false;
+  const repoIn = document.getElementById("repo"), tokIn = document.getElementById("token");
+  const host = location.hostname, guess = host.endsWith("github.io")
+    ? host.split(".")[0] + "/" + (location.pathname.split("/")[1] || host) : "";
+  try { repoIn.value = localStorage.getItem("repo") || guess; tokIn.value = localStorage.getItem("token") || ""; } catch { repoIn.value = guess; }
   document.getElementById("add").onclick = () => { PRODUCTS.push({ name: "کالای جدید", price: 0, image: "", icon: "📦" }); buildRows(); buildGrid(); };
   document.getElementById("dl").onclick = () => {
     const blob = new Blob([JSON.stringify(PRODUCTS, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob); a.download = "products.json"; a.click();
+  };
+  const msg = t => document.getElementById("pubmsg").textContent = t;
+  document.getElementById("pub").onclick = async () => {
+    const repo = repoIn.value.trim(), token = tokIn.value.trim();
+    if (!repo.includes("/") || !token) { document.querySelector("#admin details").open = true; return msg("اول نام ریپو و توکن را در «تنظیمات ذخیره» وارد کنید."); }
+    try { localStorage.setItem("repo", repo); localStorage.setItem("token", token); } catch {}
+    msg("در حال ذخیره...");
+    const url = `https://api.github.com/repos/${repo}/contents/products.json`;
+    const h = { Authorization: "Bearer " + token, Accept: "application/vnd.github+json" };
+    try {
+      const g = await fetch(url, { headers: h });
+      if (g.status === 401) return msg("توکن قبول نشد؛ توکن را دوباره بسازید و وارد کنید.");
+      if (g.status === 404 && !(await fetch("https://api.github.com/repos/" + repo, { headers: h })).ok)
+        return msg("ریپو پیدا نشد یا توکن به آن دسترسی ندارد. نام ریپو و دسترسی توکن را بررسی کنید.");
+      const sha = g.ok ? (await g.json()).sha : undefined;
+      const content = btoa(unescape(encodeURIComponent(JSON.stringify(PRODUCTS, null, 2))));
+      const r = await fetch(url, { method: "PUT", headers: { ...h, "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "update products", content, sha }) });
+      if (r.ok) msg("ذخیره شد ✓ چند دقیقه بعد در صفحهٔ اصلی دیده می‌شود.");
+      else msg("ذخیره نشد (کد " + r.status + "). دسترسی Contents: Read and write توکن را بررسی کنید.");
+    } catch { msg("اتصال به گیت‌هاب برقرار نشد. اینترنت را بررسی کنید."); }
   };
 }
 
